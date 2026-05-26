@@ -24,7 +24,10 @@ argument-hint: "<lane> [<root>]"
    - `~/wrs` — global single root across all projects
    - `Other` — free-text input
 
-   Resolve the chosen value to an absolute path before continuing.
+   `wr_register` resolves `~` and relative paths server-side, so you can pass
+   the chosen value through as-is **except for `$PWD`**: the shell variable
+   is not expanded server-side, so substitute it with the Claude Code working
+   directory yourself before calling the tool.
 
 3. Call the MCP tool `wr_register(lane=<lane>, root=<root>)`. Record the
    returned `inbox` path.
@@ -49,7 +52,10 @@ lanes by calling `/wr-init` again.
 ### On Monitor inbox events
 
 Each Monitor event is a single line. When the line matches the regex
-`^notify wr_id=(\S+) from=(\S+) path=(\S+)$`:
+`^notify wr_id=(\S+) from=(\S+) path=(.+)$`:
+
+> `path` is the **last field** on the line and may contain spaces if `<root>`
+> does. Capture with `(.+)$`, not `\S+`.
 
 1. Extract `wr_id`, `from_lane`, `path`.
 2. Call `wr_read(wr_id)` to load the full WR.
