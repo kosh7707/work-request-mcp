@@ -1,6 +1,7 @@
 ---
 name: wr-init
 description: Initialize a WR (work-request) session lane. Registers the lane with wr-mcp, starts a tail -F Monitor on the inbox log, and lists any open inbound WRs. Trigger when the user types /wr-init <lane> [<root>].
+argument-hint: "<lane> [<root>]"
 ---
 
 # wr-init — initialize WR session
