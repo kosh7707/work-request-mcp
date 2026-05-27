@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -100,6 +101,11 @@ def wr_register(lane: str, root: str) -> dict[str, str]:
     Creates `<root>/messages/` and `<root>/inbox/` directories, touches the
     inbox log file for the given lane (without truncating it), and stores
     `lane` and `root` in module-level state for use by other tools.
+
+    Returns a `monitor_cmd` field that the calling skill should pass verbatim
+    to the Claude Code `Monitor` tool. The command spawns a cross-platform
+    tail process (Python-based) so the SKILL does not depend on shell
+    coreutils — works on Linux, macOS, and Windows alike.
     """
     global _lane, _root
     root_path = Path(root).expanduser().resolve()
@@ -109,10 +115,12 @@ def wr_register(lane: str, root: str) -> dict[str, str]:
     inbox_log.touch(exist_ok=True)
     _lane = lane
     _root = root_path
+    monitor_cmd = f'"{sys.executable}" -m wr_mcp.tailer "{inbox_log}"'
     return {
         "lane": lane,
         "root": str(root_path),
         "inbox": str(inbox_log),
+        "monitor_cmd": monitor_cmd,
     }
 
 

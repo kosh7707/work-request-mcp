@@ -1,6 +1,6 @@
 ---
 name: wr-init
-description: Initialize a WR (work-request) session lane. Registers the lane with wr-mcp, starts a tail -F Monitor on the inbox log, and lists any open inbound WRs. Trigger when the user types /wr-init <lane> [<root>].
+description: Initialize a WR (work-request) session lane. Registers the lane with wr-mcp, starts a cross-platform tailer Monitor on the inbox log, and lists any open inbound WRs. Trigger when the user types /wr-init <lane> [<root>].
 argument-hint: "<lane> [<root>]"
 ---
 
@@ -30,10 +30,13 @@ argument-hint: "<lane> [<root>]"
    directory yourself before calling the tool.
 
 3. Call the MCP tool `wr_register(lane=<lane>, root=<root>)`. Record the
-   returned `inbox` path.
+   returned `inbox` path and `monitor_cmd` string.
 
 4. Call the **Monitor** tool with:
-   - `command`: `tail -F <inbox>`  (literal path returned by `wr_register`)
+   - `command`: the `monitor_cmd` value from the `wr_register` response,
+     passed verbatim. (It runs a Python-based tailer that works identically
+     on Linux, macOS, and Windows — do not substitute `tail -F` or any
+     shell-specific variant.)
    - `persistent`: `true`
    - `description`: `WR inbox lane=<lane>`
    - `timeout_ms`: `3600000` (1 hour; can be longer if `persistent` is true)

@@ -19,10 +19,18 @@ def test_register_sets_globals(tmp_path):
 
 
 def test_register_return_value(tmp_path):
+    import sys
     result = server.wr_register("s1", str(tmp_path))
     assert result["lane"] == "s1"
     assert result["root"] == str(Path(tmp_path).resolve())
-    assert result["inbox"].endswith("/inbox/s1.log")
+    # inbox path uses platform separator; check trailing components
+    assert Path(result["inbox"]).name == "s1.log"
+    assert Path(result["inbox"]).parent.name == "inbox"
+    # monitor_cmd is the verbatim shell string the SKILL feeds to Monitor
+    assert "monitor_cmd" in result
+    assert sys.executable in result["monitor_cmd"]
+    assert "wr_mcp.tailer" in result["monitor_cmd"]
+    assert result["inbox"] in result["monitor_cmd"]
 
 
 def test_register_idempotent_does_not_truncate(tmp_path):

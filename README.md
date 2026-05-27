@@ -43,6 +43,8 @@ session s2
 
 ### Step 1 — Clone and install (one-time)
 
+**Linux / macOS:**
+
 ```bash
 git clone https://github.com/kosh7707/work-request-mcp.git
 cd work-request-mcp
@@ -50,28 +52,48 @@ python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/kosh7707/work-request-mcp.git
+cd work-request-mcp
+python -m venv .venv
+.\.venv\Scripts\pip install -e ".[dev]"
+```
+
 Verify the binary exists and the test suite is green:
 
-```bash
-.venv/bin/wr-mcp --help 2>&1 | head -5   # should print FastMCP help or wait on stdin
-.venv/bin/pytest -v                      # expected: 65 passed
-```
+| OS | Command |
+|----|---------|
+| Linux / macOS | `.venv/bin/pytest -v` |
+| Windows | `.\.venv\Scripts\pytest.exe -v` |
 
-Record the **absolute path** to the binary — you need it in Step 2:
+Expected: all tests pass.
 
-```bash
-echo "$(pwd)/.venv/bin/wr-mcp"
-# e.g. /home/you/work-request-mcp/.venv/bin/wr-mcp
-```
+Record the **absolute path** to the `wr-mcp` binary — you need it in Step 2.
+
+| OS | Path |
+|----|------|
+| Linux / macOS | `<repo>/.venv/bin/wr-mcp` |
+| Windows | `<repo>\.venv\Scripts\wr-mcp.exe` |
 
 ### Step 2 — Register the MCP server (global user scope)
+
+**Linux / macOS:**
 
 ```bash
 claude mcp add wr-mcp -s user -- /absolute/path/to/work-request-mcp/.venv/bin/wr-mcp
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+claude mcp add wr-mcp -s user -- "C:\absolute\path\to\work-request-mcp\.venv\Scripts\wr-mcp.exe"
+```
+
 If your `claude` CLI version doesn't support `-s user`, hand-edit
-`~/.claude.json` and add `wr-mcp` under the top-level `mcpServers` key:
+`~/.claude.json` (or `%USERPROFILE%\.claude.json` on Windows) and add
+`wr-mcp` under the top-level `mcpServers` key:
 
 ```json
 {
@@ -86,10 +108,12 @@ If your `claude` CLI version doesn't support `-s user`, hand-edit
 Confirm registration:
 
 ```bash
-claude mcp list | grep wr-mcp        # expected: a line showing wr-mcp
+claude mcp list             # expected: line showing wr-mcp
 ```
 
 ### Step 3 — Install the two helper SKILLs (global)
+
+**Linux / macOS:**
 
 ```bash
 mkdir -p ~/.claude/skills/wr-init ~/.claude/skills/wr-info
@@ -97,10 +121,25 @@ cp skills/wr-init/SKILL.md ~/.claude/skills/wr-init/SKILL.md
 cp skills/wr-info/SKILL.md ~/.claude/skills/wr-info/SKILL.md
 ```
 
-Verify both files are in place:
+**Windows (PowerShell):**
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-init" | Out-Null
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-info" | Out-Null
+Copy-Item skills\wr-init\SKILL.md "$env:USERPROFILE\.claude\skills\wr-init\SKILL.md"
+Copy-Item skills\wr-info\SKILL.md "$env:USERPROFILE\.claude\skills\wr-info\SKILL.md"
+```
+
+Verify both files are in place. On Linux / macOS:
 
 ```bash
 ls ~/.claude/skills/wr-init/SKILL.md ~/.claude/skills/wr-info/SKILL.md
+```
+
+On Windows:
+
+```powershell
+Get-Item "$env:USERPROFILE\.claude\skills\wr-init\SKILL.md", "$env:USERPROFILE\.claude\skills\wr-info\SKILL.md"
 ```
 
 ### Step 4 — Restart Claude Code
@@ -126,9 +165,14 @@ In the new session, confirm both are loaded:
   asks you to choose between `$PWD/wrs` (per-project), `~/wrs` (global), or
   a custom path.
 
-The skill registers the lane, starts a persistent `tail -F` Monitor on the
-inbox log, lists any open WRs you've received, and reports the session
+The skill registers the lane, starts a persistent Monitor running a
+Python-based cross-platform tailer (`python -m wr_mcp.tailer <inbox>`) on
+the inbox log, lists any open WRs you've received, and reports the session
 status. After this, `/wr-info` shows the current state at any time.
+
+> Cross-platform note: the tailer is pure Python so the SKILL is identical
+> on Linux, macOS, and Windows. You do **not** need Git Bash, WSL, or any
+> Unix coreutils.
 
 ## Tools
 
@@ -166,15 +210,20 @@ completed_note: <str>?  # optional
 
 ## 2-session demo
 
+Pick a shared root path both sessions can reach. Example below uses
+`/tmp/wrs-demo` (Linux / macOS) or `C:\Temp\wrs-demo` (Windows).
+
 In **session A** (a fresh Claude Code in some project):
 
 ```
 /wr-init s1 /tmp/wrs-demo
 ```
 
-Expected: `Lane s1 registered. Root /tmp/wrs-demo. Open WRs: 0`.
+Expected: a "WR session ready" line naming the lane, root, inbox, and open
+count (`0` on first run).
 
-In **session B** (different Claude Code, can be different project):
+In **session B** (different Claude Code, can be different project), use the
+**same root**:
 
 ```
 /wr-init s2 /tmp/wrs-demo
