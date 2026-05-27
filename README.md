@@ -7,6 +7,20 @@ Sessions exchange WRs (markdown files with YAML frontmatter) through a shared
 on-disk root. Recipients detect inbound WRs by tailing a per-lane inbox log
 with Claude Code's built-in `Monitor` tool — no human in the loop.
 
+## TL;DR
+
+1. `git clone https://github.com/kosh7707/work-request-mcp.git && cd work-request-mcp`
+2. Create a venv and `pip install -e '.[dev]'`
+3. `claude mcp add wr-mcp -s user -- <absolute path to the installed wr-mcp binary>`
+4. Copy `skills/wr-init/SKILL.md` and `skills/wr-info/SKILL.md` into
+   `~/.claude/skills/<name>/SKILL.md`
+5. **Restart Claude Code.**
+6. In every session you want to participate, run `/wr-init <lane> <shared-root>`
+7. From any session: ask Claude in plain language to "send a WR to `<other lane>`: ...".
+   Recipients react automatically.
+
+Full step-by-step setup with verify commands is below.
+
 ## Why
 
 You already do this manually: open multiple Claude Code sessions, tell one to
@@ -26,7 +40,7 @@ session s1                wr-mcp (per session)            shared <root>/
 
 session s2
 ─────────
-  Monitor: tail -F inbox/s2.log
+  Monitor: python tailer streams new lines from inbox/s2.log
   notify line   ─────►    wr_read(wr_id)           ───►    (loads md)
   "complete it" ─────►    wr_complete(wr_id, note) ───►    (md status=completed)
 ```
@@ -34,6 +48,16 @@ session s2
 - 1:1 messaging only. To broadcast, send N individual WRs.
 - WR body is markdown. Frontmatter is YAML.
 - Inbox log is append-only; each line is `notify wr_id=<id> from=<lane> path=<abs>`.
+- The Monitor command is supplied by `wr_register` as a `monitor_cmd` field
+  — a pure-Python tailer that works on Linux, macOS, and Windows without
+  any extra dependencies.
+
+## Prerequisites
+
+- **Python 3.10 or newer** (`python --version` / `python3 --version`)
+- **git**
+- **Claude Code** with the `claude` CLI on your `PATH`
+- Either Linux, macOS, or Windows. No WSL, Cygwin, or Git Bash required.
 
 ## Setup
 
@@ -108,8 +132,12 @@ If your `claude` CLI version doesn't support `-s user`, hand-edit
 Confirm registration:
 
 ```bash
-claude mcp list             # expected: line showing wr-mcp
+claude mcp list
 ```
+
+Look for a line containing `wr-mcp` in the output. On Linux / macOS you can
+filter with `claude mcp list | grep wr-mcp`; on Windows PowerShell, use
+`claude mcp list | Select-String wr-mcp`.
 
 ### Step 3 — Install the two helper SKILLs (global)
 
@@ -213,7 +241,7 @@ completed_note: <str>?  # optional
 Pick a shared root path both sessions can reach. Example below uses
 `/tmp/wrs-demo` (Linux / macOS) or `C:\Temp\wrs-demo` (Windows).
 
-In **session A** (a fresh Claude Code in some project):
+In **session A** (a fresh Claude Code, opened in any working directory):
 
 ```
 /wr-init s1 /tmp/wrs-demo
@@ -222,7 +250,8 @@ In **session A** (a fresh Claude Code in some project):
 Expected: a "WR session ready" line naming the lane, root, inbox, and open
 count (`0` on first run).
 
-In **session B** (different Claude Code, can be different project), use the
+In **session B** (a different Claude Code window — can be in any working
+directory; it does not need to be the same as session A's), use the
 **same root**:
 
 ```
@@ -256,8 +285,9 @@ them. Re-do Step 3 + Step 4.
 **Claude says the `wr_*` tools don't exist, or `/wr-init` fails on
 `wr_register`.**
 MCP server isn't registered, or Claude Code wasn't restarted after `claude
-mcp add`. Run `claude mcp list | grep wr-mcp`. If absent, redo Step 2.
-If present, restart Claude Code (Step 4).
+mcp add`. Run `claude mcp list` and look for `wr-mcp` in the output (on
+Windows PowerShell use `claude mcp list | Select-String wr-mcp`). If
+absent, redo Step 2. If present, restart Claude Code (Step 4).
 
 **`claude mcp add` worked, but starting a fresh session still shows nothing.**
 You likely passed a relative path to `claude mcp add`. The path must be
@@ -272,7 +302,14 @@ in both sessions — `root` and `inbox` paths should both point inside the
 same root.
 
 **`pytest` fails on `mcp.server.fastmcp` import.**
-Wrong Python environment. Use `.venv/bin/pytest`, not the system `pytest`.
+Wrong Python environment. Use the venv's pytest, not the system `pytest`:
+- Linux / macOS: `.venv/bin/pytest`
+- Windows: `.\.venv\Scripts\pytest.exe`
+
+**`python` is not recognized / pip fails on install.**
+Check `python --version` returns 3.10 or newer. On Linux / macOS the
+executable may be `python3`. On Windows install Python from python.org or
+the Microsoft Store and make sure "Add to PATH" was checked.
 
 ## License
 
