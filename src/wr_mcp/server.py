@@ -223,6 +223,35 @@ def wr_register(lane: str, root: str, force: bool = False) -> dict[str, Any]:
 
 
 @mcp.tool()
+def wr_unregister() -> dict[str, Any]:
+    """Release the current lane and clear this session's state.
+
+    Removes this session's own `inbox/<lane>.claim` — but only if it is still
+    held by THIS process (pid match), so a lane already stolen by another live
+    session is left intact. The inbox log and all messages are preserved
+    (durable history). Returns `released=True` only when our claim was removed.
+    """
+    global _lane, _root
+    lane, root = _require_session()
+    me = os.getpid()
+    claim_path = root / "inbox" / f"{lane}.claim"
+    released = False
+    with _rootlock(root):
+        if claim_path.exists():
+            try:
+                data = json.loads(claim_path.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                data = {}
+            if data.get("pid") == me:
+                claim_path.unlink()
+                released = True
+    result = {"lane": lane, "root": str(root), "released": released}
+    _lane = None
+    _root = None
+    return result
+
+
+@mcp.tool()
 def wr_send(
     to: str,
     body: str,
