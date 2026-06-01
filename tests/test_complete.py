@@ -7,6 +7,7 @@ from wr_mcp.server import NotRecipientError, _read_md
 
 
 def test_complete_happy_path(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     sent = server.wr_send("s2", "# Title\n\nbody")
     server._reset_for_tests()
@@ -20,6 +21,7 @@ def test_complete_happy_path(tmp_path):
 
 
 def test_complete_with_note(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     sent = server.wr_send("s2", "# Title\n\nbody")
     server._reset_for_tests()
@@ -30,6 +32,7 @@ def test_complete_with_note(tmp_path):
 
 
 def test_complete_rejects_non_recipient(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     sent = server.wr_send("s2", "# Title\n\nbody")
     # still registered as s1 (sender) — try to complete as sender
@@ -41,12 +44,14 @@ def test_complete_rejects_non_recipient(tmp_path):
 
 
 def test_complete_unknown_wr_id_raises(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     with pytest.raises(FileNotFoundError):
         server.wr_complete("wr-0-x-y-z")
 
 
 def test_complete_idempotent_re_complete_resets_timestamp(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     sent = server.wr_send("s2", "# Title\n\nbody")
     server._reset_for_tests()

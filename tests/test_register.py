@@ -47,3 +47,8 @@ def test_register_switches_lane(tmp_path):
     assert server._lane == "s2"
     assert (tmp_path / "inbox" / "s2.log").is_file()
     assert (tmp_path / "inbox" / "s1.log").is_file()
+
+
+def test_register_reports_previous_lane(tmp_path):
+    assert server.wr_register("s1", str(tmp_path))["previous_lane"] is None
+    assert server.wr_register("s2", str(tmp_path))["previous_lane"] == "s1"

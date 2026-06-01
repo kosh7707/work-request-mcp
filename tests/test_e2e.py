@@ -6,6 +6,8 @@ from wr_mcp.server import _read_md
 
 
 def test_full_round_trip(tmp_path):
+    # 0. recipient s2 must have an inbox before s1 can send
+    server.wr_register("s2", str(tmp_path))
     # 1. s1 register
     server.wr_register("s1", str(tmp_path))
     # 2. send s1 -> s2
@@ -75,6 +77,12 @@ def _worker_recipient(root: str, wr_id: str, queue: mp.Queue) -> None:
 def test_two_process_round_trip(tmp_path):
     ctx = mp.get_context("spawn")
     queue: mp.Queue = ctx.Queue()
+
+    # recipient s2 must have an inbox before the sender sends. Touch it directly
+    # (no claim) so worker 2 can still claim lane s2 cleanly from its own pid.
+    inbox = tmp_path / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / "s2.log").touch()
 
     # worker 1: register s1, send to s2
     p1 = ctx.Process(target=_worker_sender, args=(str(tmp_path), queue))

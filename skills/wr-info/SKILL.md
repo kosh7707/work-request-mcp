@@ -26,5 +26,15 @@ description: Show current WR session status (lane, root, inbox path, and open WR
    ...
    ```
 
-4. **If `wr_info()` raises `RuntimeError`** (session not registered yet),
+4. **If `peers` is non-empty**, append a presence block so the user can see
+   which other lanes are registered under this root and whether each is live
+   (a dead peer means a crashed/exited session — its lane is stealable):
+
+   ```
+   --- peers ---
+   <lane>  alive=<true|false>  since=<at>
+   ...
+   ```
+
+5. **If `wr_info()` raises `RuntimeError`** (session not registered yet),
    tell the user to run `/wr-init <lane>` first.

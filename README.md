@@ -144,9 +144,10 @@ filter with `claude mcp list | grep wr-mcp`; on Windows PowerShell, use
 **Linux / macOS:**
 
 ```bash
-mkdir -p ~/.claude/skills/wr-init ~/.claude/skills/wr-info
+mkdir -p ~/.claude/skills/wr-init ~/.claude/skills/wr-info ~/.claude/skills/wr-reinit
 cp skills/wr-init/SKILL.md ~/.claude/skills/wr-init/SKILL.md
 cp skills/wr-info/SKILL.md ~/.claude/skills/wr-info/SKILL.md
+cp skills/wr-reinit/SKILL.md ~/.claude/skills/wr-reinit/SKILL.md
 ```
 
 **Windows (PowerShell):**
@@ -154,14 +155,16 @@ cp skills/wr-info/SKILL.md ~/.claude/skills/wr-info/SKILL.md
 ```powershell
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-init" | Out-Null
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-info" | Out-Null
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-reinit" | Out-Null
 Copy-Item skills\wr-init\SKILL.md "$env:USERPROFILE\.claude\skills\wr-init\SKILL.md"
 Copy-Item skills\wr-info\SKILL.md "$env:USERPROFILE\.claude\skills\wr-info\SKILL.md"
+Copy-Item skills\wr-reinit\SKILL.md "$env:USERPROFILE\.claude\skills\wr-reinit\SKILL.md"
 ```
 
 Verify both files are in place. On Linux / macOS:
 
 ```bash
-ls ~/.claude/skills/wr-init/SKILL.md ~/.claude/skills/wr-info/SKILL.md
+ls ~/.claude/skills/wr-init/SKILL.md ~/.claude/skills/wr-info/SKILL.md ~/.claude/skills/wr-reinit/SKILL.md
 ```
 
 On Windows:
@@ -206,12 +209,12 @@ status. After this, `/wr-info` shows the current state at any time.
 
 | Tool | Signature | Notes |
 |------|-----------|-------|
-| `wr_register` | `(lane: str, root: str)` | Session init. Idempotent. |
-| `wr_send` | `(to: str, body: str, slug?: str, related_to?: str)` | Writes md + appends notify line. |
+| `wr_register` | `(lane: str, root: str, force?: bool)` | Session init. Claims the lane (`inbox/<lane>.claim`); raises `LaneClaimedError` if another live process holds it. `force=True` steals; a dead-pid claim is stolen automatically. Returns `previous_lane`. |
+| `wr_send` | `(to: str, body: str, slug?: str, related_to?: str)` | Writes md + appends notify line. Rejects an unregistered recipient (`ValueError`) instead of silently dropping. Idempotent: an identical still-open WR is returned (`dedup: true`) rather than duplicated. |
 | `wr_read` | `(wr_id: str)` | Returns `{frontmatter, body, path}`. |
 | `wr_complete` | `(wr_id: str, note?: str)` | Recipient-only. Raises `NotRecipientError` otherwise. |
 | `wr_list_open` | `()` | Open WRs **addressed to current lane**, sorted by `registered_at`. |
-| `wr_info` | `()` | `{lane, root, inbox, sent_open, received_open}` |
+| `wr_info` | `()` | `{lane, root, inbox, sent_open, received_open, peers}`. `peers` lists other registered lanes with live status (`{lane, pid, alive, at}`). |
 
 ## File layout under `<root>/`
 

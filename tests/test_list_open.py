@@ -13,6 +13,7 @@ def test_list_open_empty(tmp_path):
 
 def test_list_open_filters_by_to(tmp_path):
     # s1 -> s2 (A)
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     a = server.wr_send("s2", "from s1")["wr_id"]
     server._reset_for_tests()
@@ -27,6 +28,7 @@ def test_list_open_filters_by_to(tmp_path):
 
 
 def test_list_open_excludes_completed(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     sent = server.wr_send("s2", "x")
     server._reset_for_tests()
@@ -36,12 +38,14 @@ def test_list_open_excludes_completed(tmp_path):
 
 
 def test_list_open_excludes_sent_by_self(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     server.wr_send("s2", "x")
     assert server.wr_list_open() == []  # s1 is sender, not recipient
 
 
 def test_list_open_sorted_by_registered_at(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     ids = []
     for i in range(3):
@@ -57,6 +61,7 @@ def test_list_open_sorted_by_registered_at(tmp_path):
 
 
 def test_list_open_entry_shape(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     server.wr_send("s2", "x")
     server._reset_for_tests()
@@ -71,6 +76,7 @@ def test_list_open_entry_shape(tmp_path):
 
 
 def test_list_open_ignores_non_md_files(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     server.wr_send("s2", "x")
     # drop a stray non-md file
@@ -82,6 +88,7 @@ def test_list_open_ignores_non_md_files(tmp_path):
 
 
 def test_list_open_ignores_malformed_md_silently(tmp_path):
+    server.wr_register("s2", str(tmp_path))
     server.wr_register("s1", str(tmp_path))
     server.wr_send("s2", "x")
     # drop a malformed md file (no frontmatter)

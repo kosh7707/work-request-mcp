@@ -32,6 +32,12 @@ argument-hint: "<lane> [<root>]"
 3. Call the MCP tool `wr_register(lane=<lane>, root=<root>)`. Record the
    returned `inbox` path and `monitor_cmd` string.
 
+   > If this raises `LaneClaimedError`, another live process already holds the
+   > lane. Do **not** force it blindly — either pick a different lane, or, if
+   > you know this is your own session resuming after a detach, run
+   > `/wr-reinit <lane>` (it steals the stale claim and catches up on missed
+   > WRs).
+
 4. Call the **Monitor** tool with:
    - `command`: the `monitor_cmd` value from the `wr_register` response,
      passed verbatim. (It runs a Python-based tailer that works identically
