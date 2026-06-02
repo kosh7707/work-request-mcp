@@ -70,8 +70,9 @@ Each Monitor event is a single line. When the line matches the regex
 2. Call `wr_read(wr_id)` to load the full WR.
 3. Present a short summary to the user: from, registered_at, first
    paragraph of body. Offer the full body if the user wants it.
-4. If the user gives a resolution (e.g. "tell them yes", "we already did
-   that", "I'll handle it"), compose a short note and call
+4. Completing a WR is your autonomous judgment: when the ask is resolved
+   (whether by a user resolution like "tell them yes" / "we already did
+   that", or by work you carried out), compose a short note and call
    `wr_complete(wr_id, note=<summary of resolution>)`.
 
 ### On natural-language send requests
@@ -94,7 +95,5 @@ the `/wr-info` skill) and present the result.
 
 - Do **not** call `wr_register` again in this session unless the user
   explicitly switches lanes.
-- Do **not** auto-complete WRs without a clear user signal that the
-  resolution is done.
 - Do **not** broadcast: WRs are 1:1 only. If the user wants several
   recipients, send N separate WRs.
