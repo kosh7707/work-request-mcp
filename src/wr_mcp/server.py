@@ -277,6 +277,11 @@ def wr_send(
             f"registered lanes: {existing}"
         )
 
+    # Online-awareness (soft): a KNOWN-but-offline recipient is NOT an error — the WR is
+    # queued and read when it re-registers (mailbox semantics). We surface its liveness so
+    # the sender knows, but never block on it. (Only the unknown-lane guard above is hard.)
+    recipient_online = _lane_online(root, to)
+
     body_sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
     chosen_slug = _derive_slug_from_body(body) if slug is None else _slugify(slug)
     with _rootlock(root):
@@ -295,6 +300,7 @@ def wr_send(
                     "wr_id": str(fm_existing.get("wr_id", "")),
                     "path": str(p.resolve()),
                     "dedup": True,
+                    "recipient_online": recipient_online,
                 }
 
         unix_ms = int(time.time() * 1000)
@@ -326,7 +332,13 @@ def wr_send(
             f.flush()
             os.fsync(f.fileno())
 
-    return {"wr_id": wr_id, "path": str(md_path)}
+    result = {"wr_id": wr_id, "path": str(md_path), "recipient_online": recipient_online}
+    if not recipient_online:
+        result["warning"] = (
+            f"lane {to!r} is offline (no live claim); WR is queued and will be "
+            f"delivered when it re-registers"
+        )
+    return result
 
 
 @mcp.tool()
@@ -371,6 +383,43 @@ def _iter_message_frontmatters(root: Path):
         except (ValueError, OSError):
             continue
         yield p, fm
+
+
+def _lane_online(root: Path, lane: str) -> bool:
+    """True if `lane` currently holds a live claim (registered AND its pid is alive)."""
+    claim = root / "inbox" / f"{lane}.claim"
+    try:
+        data = json.loads(claim.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return False
+    pid = data.get("pid")
+    return bool(pid) and _pid_alive(pid)
+
+
+def _lane_status(root: Path, self_lane: str) -> list[dict[str, Any]]:
+    """Every lane KNOWN under this root (registered at least once = has an inbox log),
+    each with its online status. `online` = the lane holds a live claim. A known-but-
+    offline lane still receives WRs (mailbox semantics); only an UNKNOWN lane (no inbox
+    log) is rejected by wr_send. Sorted by lane name."""
+    claims: dict[str, dict] = {}
+    for p in (root / "inbox").glob("*.claim"):
+        try:
+            claims[p.stem] = json.loads(p.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            claims[p.stem] = {}
+    out: list[dict[str, Any]] = []
+    for log in sorted((root / "inbox").glob("*.log")):
+        ln = log.stem
+        data = claims.get(ln, {})
+        pid = data.get("pid")
+        out.append({
+            "lane": ln,
+            "online": bool(pid) and _pid_alive(pid),
+            "pid": pid,
+            "since": data.get("at"),
+            "is_self": ln == self_lane,
+        })
+    return out
 
 
 def _peer_claims(root: Path, self_lane: str) -> list[dict[str, Any]]:
@@ -435,6 +484,28 @@ def wr_info() -> dict[str, Any]:
         "sent_open": sent_open,
         "received_open": received_open,
         "peers": _peer_claims(root, lane),
+    }
+
+
+@mcp.tool()
+def wr_lanes() -> dict[str, Any]:
+    """List every lane KNOWN under this root (registered at least once) with online status.
+
+    Lets a sender check reachability before sending. `online` = the lane holds a live claim
+    now. A known-but-offline lane is NOT an error: a WR sent to it is queued and delivered
+    when it re-registers (mailbox semantics). wr_send rejects only UNKNOWN lanes (never
+    registered) — the common typo guard — and warns (without blocking) for offline ones.
+
+    Returns `online` (the reachable-now lane names) and `lanes` (every known lane with
+    {lane, online, pid, since, is_self}).
+    """
+    lane, root = _require_session()
+    lanes = _lane_status(root, lane)
+    return {
+        "lane": lane,
+        "root": str(root),
+        "online": [entry["lane"] for entry in lanes if entry["online"]],
+        "lanes": lanes,
     }
 
 

@@ -9,6 +9,7 @@ EXPECTED_TOOLS = {
     "wr_complete",
     "wr_list_open",
     "wr_info",
+    "wr_lanes",
 }
 
 

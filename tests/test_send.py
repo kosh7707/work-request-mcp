@@ -141,6 +141,25 @@ def test_send_to_unregistered_lane_errors(tmp_path):
     assert list((tmp_path / "messages").glob("*.md")) == []
 
 
+def test_send_online_recipient_flagged_no_warning(tmp_path):
+    _register_pair(tmp_path)
+    result = server.wr_send("s2", "x")
+    assert result["recipient_online"] is True
+    assert "warning" not in result
+
+
+def test_send_offline_recipient_warns_but_delivers(tmp_path):
+    # s2 KNOWN (inbox log) but offline (claim removed) -> deliver + warn, never block.
+    _register_pair(tmp_path)
+    (tmp_path / "inbox" / "s2.claim").unlink()
+    result = server.wr_send("s2", "queued for later")
+    assert result["recipient_online"] is False
+    assert "warning" in result and "offline" in result["warning"]
+    # delivered anyway: md written + notify line appended (mailbox semantics)
+    assert Path(result["path"]).is_file()
+    assert (tmp_path / "inbox" / "s2.log").read_text(encoding="utf-8").strip()
+
+
 def test_send_fsyncs_inbox_line(tmp_path, monkeypatch):
     _register_pair(tmp_path)
     calls = []
