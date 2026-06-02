@@ -87,6 +87,28 @@ def _pid_alive_windows(pid: int) -> bool:  # pragma: no cover - POSIX CI
         kernel32.CloseHandle(handle)
 
 
+def _claim_path(root: Path, lane: str) -> Path:
+    return root / "inbox" / f"{lane}.claim"
+
+
+def _inbox_log(root: Path, lane: str) -> Path:
+    return root / "inbox" / f"{lane}.log"
+
+
+def _read_claim(path: Path) -> dict:
+    """Parse a .claim file's JSON, returning {} on missing/corrupt content."""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+
+
+def _claim_alive(data: dict) -> bool:
+    """True if the claim's pid is set and that process is alive."""
+    pid = data.get("pid")
+    return bool(pid) and _pid_alive(pid)
+
+
 def _reset_for_tests() -> None:
     global _lane, _root
     _lane = None
@@ -186,16 +208,13 @@ def wr_register(lane: str, root: str, force: bool = False) -> dict[str, Any]:
     root_path = Path(root).expanduser().resolve()
     (root_path / "messages").mkdir(parents=True, exist_ok=True)
     (root_path / "inbox").mkdir(parents=True, exist_ok=True)
-    inbox_log = root_path / "inbox" / f"{lane}.log"
+    inbox_log = _inbox_log(root_path, lane)
     inbox_log.touch(exist_ok=True)
-    claim_path = root_path / "inbox" / f"{lane}.claim"
+    claim_path = _claim_path(root_path, lane)
     me = os.getpid()
     with _rootlock(root_path):
         if claim_path.exists():
-            try:
-                data = json.loads(claim_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                data = {}
+            data = _read_claim(claim_path)
             other = data.get("pid")
             if other and other != me and _pid_alive(other) and not force:
                 raise LaneClaimedError(
@@ -234,14 +253,11 @@ def wr_unregister() -> dict[str, Any]:
     global _lane, _root
     lane, root = _require_session()
     me = os.getpid()
-    claim_path = root / "inbox" / f"{lane}.claim"
+    claim_path = _claim_path(root, lane)
     released = False
     with _rootlock(root):
         if claim_path.exists():
-            try:
-                data = json.loads(claim_path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                data = {}
+            data = _read_claim(claim_path)
             if data.get("pid") == me:
                 claim_path.unlink()
                 released = True
@@ -269,7 +285,7 @@ def wr_send(
     # Recipient must have an inbox (i.e. have registered) before we can send.
     # Without this, open(..., "a") silently creates a log nobody reads, so a
     # typo'd or never-registered lane swallows the WR with no error.
-    inbox_log = root / "inbox" / f"{to}.log"
+    inbox_log = _inbox_log(root, to)
     if not inbox_log.exists():
         existing = sorted(p.stem for p in (root / "inbox").glob("*.log"))
         raise ValueError(
@@ -387,13 +403,7 @@ def _iter_message_frontmatters(root: Path):
 
 def _lane_online(root: Path, lane: str) -> bool:
     """True if `lane` currently holds a live claim (registered AND its pid is alive)."""
-    claim = root / "inbox" / f"{lane}.claim"
-    try:
-        data = json.loads(claim.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
-        return False
-    pid = data.get("pid")
-    return bool(pid) and _pid_alive(pid)
+    return _claim_alive(_read_claim(_claim_path(root, lane)))
 
 
 def _lane_status(root: Path, self_lane: str) -> list[dict[str, Any]]:
@@ -401,12 +411,9 @@ def _lane_status(root: Path, self_lane: str) -> list[dict[str, Any]]:
     each with its online status. `online` = the lane holds a live claim. A known-but-
     offline lane still receives WRs (mailbox semantics); only an UNKNOWN lane (no inbox
     log) is rejected by wr_send. Sorted by lane name."""
-    claims: dict[str, dict] = {}
-    for p in (root / "inbox").glob("*.claim"):
-        try:
-            claims[p.stem] = json.loads(p.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            claims[p.stem] = {}
+    claims: dict[str, dict] = {
+        p.stem: _read_claim(p) for p in (root / "inbox").glob("*.claim")
+    }
     out: list[dict[str, Any]] = []
     for log in sorted((root / "inbox").glob("*.log")):
         ln = log.stem
@@ -414,7 +421,7 @@ def _lane_status(root: Path, self_lane: str) -> list[dict[str, Any]]:
         pid = data.get("pid")
         out.append({
             "lane": ln,
-            "online": bool(pid) and _pid_alive(pid),
+            "online": _claim_alive(data),
             "pid": pid,
             "since": data.get("at"),
             "is_self": ln == self_lane,
@@ -433,15 +440,11 @@ def _peer_claims(root: Path, self_lane: str) -> list[dict[str, Any]]:
     for p in sorted((root / "inbox").glob("*.claim")):
         if p.stem == self_lane:
             continue
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            data = {}
-        pid = data.get("pid")
+        data = _read_claim(p)
         peers.append({
             "lane": p.stem,
-            "pid": pid,
-            "alive": bool(pid) and _pid_alive(pid),
+            "pid": data.get("pid"),
+            "alive": _claim_alive(data),
             "at": data.get("at"),
         })
     return peers
@@ -480,7 +483,7 @@ def wr_info() -> dict[str, Any]:
     return {
         "lane": lane,
         "root": str(root),
-        "inbox": str(root / "inbox" / f"{lane}.log"),
+        "inbox": str(_inbox_log(root, lane)),
         "sent_open": sent_open,
         "received_open": received_open,
         "peers": _peer_claims(root, lane),
