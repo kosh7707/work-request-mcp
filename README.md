@@ -139,16 +139,17 @@ Look for a line containing `wr-mcp` in the output. On Linux / macOS you can
 filter with `claude mcp list | grep wr-mcp`; on Windows PowerShell, use
 `claude mcp list | Select-String wr-mcp`.
 
-### Step 3 — Install the two helper SKILLs (global)
+### Step 3 — Install the helper SKILLs (global)
 
 **Linux / macOS:**
 
 ```bash
-mkdir -p ~/.claude/skills/wr-init ~/.claude/skills/wr-info ~/.claude/skills/wr-reinit ~/.claude/skills/wr-unregister
+mkdir -p ~/.claude/skills/wr-init ~/.claude/skills/wr-info ~/.claude/skills/wr-reinit ~/.claude/skills/wr-unregister ~/.claude/skills/wr-lanes
 cp skills/wr-init/SKILL.md ~/.claude/skills/wr-init/SKILL.md
 cp skills/wr-info/SKILL.md ~/.claude/skills/wr-info/SKILL.md
 cp skills/wr-reinit/SKILL.md ~/.claude/skills/wr-reinit/SKILL.md
 cp skills/wr-unregister/SKILL.md ~/.claude/skills/wr-unregister/SKILL.md
+cp skills/wr-lanes/SKILL.md ~/.claude/skills/wr-lanes/SKILL.md
 ```
 
 **Windows (PowerShell):**
@@ -158,16 +159,18 @@ New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-in
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-info" | Out-Null
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-reinit" | Out-Null
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-unregister" | Out-Null
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills\wr-lanes" | Out-Null
 Copy-Item skills\wr-init\SKILL.md "$env:USERPROFILE\.claude\skills\wr-init\SKILL.md"
 Copy-Item skills\wr-info\SKILL.md "$env:USERPROFILE\.claude\skills\wr-info\SKILL.md"
 Copy-Item skills\wr-reinit\SKILL.md "$env:USERPROFILE\.claude\skills\wr-reinit\SKILL.md"
 Copy-Item skills\wr-unregister\SKILL.md "$env:USERPROFILE\.claude\skills\wr-unregister\SKILL.md"
+Copy-Item skills\wr-lanes\SKILL.md "$env:USERPROFILE\.claude\skills\wr-lanes\SKILL.md"
 ```
 
-Verify both files are in place. On Linux / macOS:
+Verify the files are in place. On Linux / macOS:
 
 ```bash
-ls ~/.claude/skills/wr-init/SKILL.md ~/.claude/skills/wr-info/SKILL.md ~/.claude/skills/wr-reinit/SKILL.md ~/.claude/skills/wr-unregister/SKILL.md
+ls ~/.claude/skills/wr-init/SKILL.md ~/.claude/skills/wr-info/SKILL.md ~/.claude/skills/wr-reinit/SKILL.md ~/.claude/skills/wr-unregister/SKILL.md ~/.claude/skills/wr-lanes/SKILL.md
 ```
 
 On Windows:
@@ -213,12 +216,13 @@ status. After this, `/wr-info` shows the current state at any time.
 | Tool | Signature | Notes |
 |------|-----------|-------|
 | `wr_register` | `(lane: str, root: str, force?: bool)` | Session init. Claims the lane (`inbox/<lane>.claim`); raises `LaneClaimedError` if another live process holds it. `force=True` steals; a dead-pid claim is stolen automatically. Returns `previous_lane`. |
-| `wr_send` | `(to: str, body: str, slug?: str, related_to?: str)` | Writes md + appends notify line. Rejects an unregistered recipient (`ValueError`) instead of silently dropping. Idempotent: an identical still-open WR is returned (`dedup: true`) rather than duplicated. |
+| `wr_send` | `(to: str, body: str, slug?: str, related_to?: str)` | Writes md + appends notify line. Rejects an **unknown** recipient (never registered → `ValueError`) instead of silently dropping. A **known-but-offline** recipient is delivered anyway (mailbox semantics) with `recipient_online: false` + a `warning` in the result. Idempotent: an identical still-open WR is returned (`dedup: true`) rather than duplicated. |
 | `wr_read` | `(wr_id: str)` | Returns `{frontmatter, body, path}`. |
 | `wr_complete` | `(wr_id: str, note?: str)` | Recipient-only. Raises `NotRecipientError` otherwise. |
 | `wr_list_open` | `()` | Open WRs **addressed to current lane**, sorted by `registered_at`. |
 | `wr_unregister` | `()` | Release the current lane: removes this session's own claim (pid-guarded) and clears state. Keeps the inbox log and messages. Returns `{lane, root, released}`. |
 | `wr_info` | `()` | `{lane, root, inbox, sent_open, received_open, peers}`. `peers` lists other registered lanes with live status (`{lane, pid, alive, at}`). |
+| `wr_lanes` | `()` | `{lane, root, online, lanes}`. Every lane KNOWN under the root (registered at least once) with `{lane, online, pid, since, is_self}`; `online` is the reachable-now subset. Check reachability before sending — offline lanes still receive (queued), only unknown lanes are rejected. |
 
 ## File layout under `<root>/`
 
