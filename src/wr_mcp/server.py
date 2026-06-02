@@ -95,6 +95,10 @@ def _inbox_log(root: Path, lane: str) -> Path:
     return root / "inbox" / f"{lane}.log"
 
 
+def _message_path(root: Path, wr_id: str) -> Path:
+    return (root / "messages" / f"{wr_id}.md").resolve()
+
+
 def _read_claim(path: Path) -> dict:
     """Parse a .claim file's JSON, returning {} on missing/corrupt content."""
     try:
@@ -321,14 +325,14 @@ def wr_send(
 
         unix_ms = int(time.time() * 1000)
         wr_id = f"wr-{unix_ms}-{lane}-{to}-{chosen_slug}"
-        md_path = (root / "messages" / f"{wr_id}.md").resolve()
+        md_path = _message_path(root, wr_id)
         # Avoid id collision: two sends in the same ms to the same target+slug
         # would otherwise produce an identical wr_id and os.replace would
         # silently overwrite the first file while both notify lines append.
         while md_path.exists():
             unix_ms += 1
             wr_id = f"wr-{unix_ms}-{lane}-{to}-{chosen_slug}"
-            md_path = (root / "messages" / f"{wr_id}.md").resolve()
+            md_path = _message_path(root, wr_id)
 
         fm: dict[str, Any] = {
             "wr_id": wr_id,
@@ -361,7 +365,7 @@ def wr_send(
 def wr_read(wr_id: str) -> dict[str, Any]:
     """Read a WR by id. Returns its frontmatter, body, and absolute path."""
     _, root = _require_session()
-    path = (root / "messages" / f"{wr_id}.md").resolve()
+    path = _message_path(root, wr_id)
     if not path.is_file():
         raise FileNotFoundError(wr_id)
     fm, body = _read_md(path)
@@ -372,7 +376,7 @@ def wr_read(wr_id: str) -> dict[str, Any]:
 def wr_complete(wr_id: str, note: str | None = None) -> dict[str, str]:
     """Mark a WR as completed. Only the recipient lane may call this."""
     lane, root = _require_session()
-    path = (root / "messages" / f"{wr_id}.md").resolve()
+    path = _message_path(root, wr_id)
     if not path.is_file():
         raise FileNotFoundError(wr_id)
     with _rootlock(root):
