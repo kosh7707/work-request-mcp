@@ -277,7 +277,7 @@ def wr_send(
     body: str,
     slug: str | None = None,
     related_to: str | None = None,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Send a WR to another lane.
 
     Writes a markdown file under `<root>/messages/` with YAML frontmatter,

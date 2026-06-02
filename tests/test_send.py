@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import time
@@ -167,3 +168,20 @@ def test_send_fsyncs_inbox_line(tmp_path, monkeypatch):
     monkeypatch.setattr(server.os, "fsync", lambda fd: calls.append(fd) or real_fsync(fd))
     server.wr_send("s2", "x")
     assert calls  # notify line durably flushed
+
+
+def test_send_via_mcp_layer_validates_output(tmp_path):
+    # Through the @mcp.tool() layer, FastMCP builds a structured-output model from
+    # the return annotation and validates the result. A dict[str, str] annotation
+    # rejects the bool recipient_online/dedup values. Raw-function tests bypass this.
+    server.wr_register("s2", str(tmp_path))   # online recipient -> recipient_online=True
+    server.wr_register("s1", str(tmp_path))
+    asyncio.run(server.mcp.call_tool("wr_send", {"to": "s2", "body": "# hi\n\nx"}))
+
+
+def test_send_via_mcp_layer_dedup_path_validates_output(tmp_path):
+    # Dedup path returns dedup=True (bool) too -> same validation hazard.
+    server.wr_register("s2", str(tmp_path))
+    server.wr_register("s1", str(tmp_path))
+    server.wr_send("s2", "# hi\n\nx")          # first send (raw)
+    asyncio.run(server.mcp.call_tool("wr_send", {"to": "s2", "body": "# hi\n\nx"}))
